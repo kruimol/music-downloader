@@ -8,11 +8,15 @@ const loading = document.getElementById('loading');
 const error = document.getElementById('error');
 const results = document.getElementById('results');
 const tracksList = document.getElementById('tracksList');
+const albumsList = document.getElementById('albumsList');
 const downloadStatus = document.getElementById('downloadStatus');
 const statusContent = document.getElementById('statusContent');
 
 // Track download status tracking
 const activeDownloads = new Map();
+
+// Search type: 'tracks' or 'albums'
+let searchType = 'tracks';
 
 // Event listeners
 searchBtn.addEventListener('click', handleSearch);
@@ -20,6 +24,23 @@ searchInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         handleSearch();
     }
+});
+
+// Search type toggle
+document.getElementById('searchTracks')?.addEventListener('click', () => {
+    searchType = 'tracks';
+    document.getElementById('searchTracks').classList.add('active');
+    document.getElementById('searchAlbums').classList.remove('active');
+    // Re-search if there's a query
+    if (searchInput.value.trim()) handleSearch();
+});
+
+document.getElementById('searchAlbums')?.addEventListener('click', () => {
+    searchType = 'albums';
+    document.getElementById('searchAlbums').classList.add('active');
+    document.getElementById('searchTracks').classList.remove('active');
+    // Re-search if there's a query
+    if (searchInput.value.trim()) handleSearch();
 });
 
 async function handleSearch() {
@@ -35,8 +56,13 @@ async function handleSearch() {
     hideResults();
     
     try {
-        const tracks = await searchTracks(query);
-        await displayTracks(tracks);
+        if (searchType === 'albums') {
+            const albums = await searchAlbums(query);
+            displayAlbums(albums);
+        } else {
+            const tracks = await searchTracks(query);
+            await displayTracks(tracks);
+        }
         hideLoading();
         showResults();
     } catch (err) {
@@ -62,7 +88,28 @@ async function searchTracks(query) {
     return await response.json();
 }
 
+async function searchAlbums(query) {
+    const response = await fetch(`${API_BASE_URL}/api/search/albums`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query, limit: 20 }),
+    });
+    
+    if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Album search failed');
+    }
+    
+    return await response.json();
+}
+
 async function displayTracks(tracks) {
+    // Show tracks list, hide albums list
+    tracksList.classList.remove('hidden');
+    albumsList.classList.add('hidden');
+    
     if (tracks.length === 0) {
         tracksList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No tracks found</p>';
         return;
@@ -517,4 +564,142 @@ function updateQueueCount() {
         queueCount.textContent = activeCount > 0 ? `(${activeCount} active)` : '';
     }
 }
+
+// ============ ALBUM FUNCTIONS ============
+
+function displayAlbums(albums) {
+    // Show albums list, hide tracks list
+    albumsList.classList.remove('hidden');
+    tracksList.classList.add('hidden');
+    
+    if (albums.length === 0) {
+        albumsList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No albums found</p>';
+        return;
+    }
+    
+    albumsList.innerHTML = albums.map(album => createAlbumCard(album)).join('');
+    
+    // Add click handlers
+    albums.forEach(album => {
+        const card = document.getElementById(`album-${album.id}`);
+        if (card) {
+            card.addEventListener('click', () => showAlbumDetails(album.id));
+        }
+    });
+}
+
+function createAlbumCard(album) {
+    const albumArt = album.album_art || 'https://via.placeholder.com/120?text=No+Image';
+    const year = album.release_date ? album.release_date.split('-')[0] : '';
+    
+    return `
+        <div class="album-card" id="album-${album.id}">
+            <img src="${albumArt}" alt="${escapeHtml(album.name)}" class="album-art" />
+            <div class="album-info">
+                <div class="album-name">${escapeHtml(album.name)}</div>
+                <div class="album-artist">${escapeHtml(album.artist)}</div>
+                <div class="album-meta">${album.total_tracks} tracks${year ? ' • ' + year : ''}</div>
+            </div>
+        </div>
+    `;
+}
+
+let currentAlbum = null;
+
+async function showAlbumDetails(albumId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/album/${albumId}`);
+        if (!response.ok) throw new Error('Failed to fetch album');
+        
+        const album = await response.json();
+        currentAlbum = album;
+        
+        const modal = document.getElementById('albumModal');
+        const title = document.getElementById('albumModalTitle');
+        const details = document.getElementById('albumDetails');
+        const tracksList = document.getElementById('albumTracksList');
+        
+        title.textContent = album.name;
+        
+        const albumArt = album.album_art || 'https://via.placeholder.com/150?text=No+Image';
+        const year = album.release_date ? album.release_date.split('-')[0] : '';
+        
+        details.innerHTML = `
+            <div class="album-header">
+                <img src="${albumArt}" alt="${escapeHtml(album.name)}" class="album-detail-art" />
+                <div class="album-header-info">
+                    <h3>${escapeHtml(album.name)}</h3>
+                    <p class="album-header-artist">${escapeHtml(album.artist)}</p>
+                    <p class="album-header-meta">${album.total_tracks} tracks${year ? ' • ' + year : ''}</p>
+                </div>
+            </div>
+        `;
+        
+        tracksList.innerHTML = album.tracks.map((track, index) => `
+            <div class="album-track">
+                <span class="track-number">${track.track_number || index + 1}</span>
+                <div class="track-details">
+                    <span class="track-title">${escapeHtml(track.name)}</span>
+                    <span class="track-duration">${formatDuration(track.duration_ms)}</span>
+                </div>
+            </div>
+        `).join('');
+        
+        modal.classList.remove('hidden');
+    } catch (err) {
+        showError(`Failed to load album: ${err.message}`);
+    }
+}
+
+function hideAlbumModal() {
+    document.getElementById('albumModal').classList.add('hidden');
+    currentAlbum = null;
+}
+
+async function downloadAlbum() {
+    if (!currentAlbum) return;
+    
+    const downloadLocation = document.getElementById('downloadLocation').value;
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/download/album`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                album_id: currentAlbum.id,
+                location: downloadLocation
+            })
+        });
+        
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.detail || 'Failed to start album download');
+        }
+        
+        const result = await response.json();
+        
+        // Show download status
+        showDownloadStatus();
+        
+        // Add status items for each track
+        currentAlbum.tracks.forEach(track => {
+            activeDownloads.set(track.id, { status: 'queued', progress: 0, track: track });
+            addStatusItem(track.id, track, 'queued', `Queued (Album: ${currentAlbum.name})`, 0);
+            pollDownloadStatus(track.id, track);
+        });
+        
+        hideAlbumModal();
+        
+    } catch (err) {
+        showError(`Album download failed: ${err.message}`);
+    }
+}
+
+// Album modal event listeners
+document.getElementById('albumModalClose')?.addEventListener('click', hideAlbumModal);
+document.getElementById('closeAlbumModal')?.addEventListener('click', hideAlbumModal);
+document.getElementById('downloadAlbumBtn')?.addEventListener('click', downloadAlbum);
+document.getElementById('albumModal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'albumModal') hideAlbumModal();
+});
 

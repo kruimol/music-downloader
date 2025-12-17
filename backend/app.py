@@ -87,6 +87,10 @@ class DownloadRequest(BaseModel):
     location: Optional[str] = "local"  # 'local' or 'navidrome'
     video_id: Optional[str] = None  # YouTube video ID if user selected a specific candidate
 
+class AlbumDownloadRequest(BaseModel):
+    album_id: str
+    location: Optional[str] = "local"  # 'local' or 'navidrome'
+
 # Response models
 class TrackResponse(BaseModel):
     id: str
@@ -250,6 +254,34 @@ async def search_tracks(request: SearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
 
+@app.post("/api/search/albums")
+async def search_albums(request: SearchRequest):
+    """Search for albums on Spotify"""
+    if not spotify_service:
+        raise HTTPException(status_code=500, detail="Spotify service not configured")
+    
+    try:
+        albums = spotify_service.search_albums(request.query, request.limit)
+        return albums
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Album search failed: {str(e)}")
+
+@app.get("/api/album/{album_id}")
+async def get_album(album_id: str):
+    """Get album details including all tracks"""
+    if not spotify_service:
+        raise HTTPException(status_code=500, detail="Spotify service not configured")
+    
+    try:
+        album = spotify_service.get_album_details(album_id)
+        if not album:
+            raise HTTPException(status_code=404, detail="Album not found")
+        return album
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching album: {str(e)}")
+
 @app.get("/api/track/{track_id}", response_model=TrackResponse)
 async def get_track(track_id: str):
     """Get details for a specific track"""
@@ -301,6 +333,93 @@ async def get_download_status(track_id: str):
         raise HTTPException(status_code=404, detail="Download not found")
     
     return download_status[track_id]
+
+# Album download status storage
+album_download_status: Dict[str, Dict] = {}
+
+@app.post("/api/download/album")
+async def download_album(request: AlbumDownloadRequest, background_tasks: BackgroundTasks):
+    """Start downloading all tracks from an album"""
+    if not spotify_service:
+        raise HTTPException(status_code=500, detail="Spotify service not configured")
+    
+    # Get album details
+    album = spotify_service.get_album_details(request.album_id)
+    if not album:
+        raise HTTPException(status_code=404, detail="Album not found")
+    
+    # Validate location
+    location = request.location if request.location in ["local", "navidrome"] else "local"
+    location_msg = "local downloads folder" if location == "local" else "Navidrome server"
+    
+    # Initialize album status
+    album_download_status[request.album_id] = {
+        "status": "downloading",
+        "album_name": album['name'],
+        "artist": album['artist'],
+        "total_tracks": len(album['tracks']),
+        "completed_tracks": 0,
+        "failed_tracks": 0,
+        "current_track": None,
+        "track_ids": [t['id'] for t in album['tracks']]
+    }
+    
+    # Queue each track for download
+    for track in album['tracks']:
+        download_status[track['id']] = {
+            "status": "queued",
+            "message": f"Queued (Album: {album['name']})",
+            "progress": 0,
+            "stage": "queued",
+            "album_id": request.album_id
+        }
+        background_tasks.add_task(download_album_track, track['id'], location, request.album_id)
+    
+    return {
+        "status": "queued",
+        "message": f"Album '{album['name']}' queued for download to {location_msg}",
+        "album_id": request.album_id,
+        "total_tracks": len(album['tracks'])
+    }
+
+def download_album_track(track_id: str, location: str, album_id: str):
+    """Download a single track as part of an album download"""
+    try:
+        # Update album status
+        if album_id in album_download_status:
+            album_download_status[album_id]["current_track"] = track_id
+        
+        # Use existing download function
+        download_and_process(track_id, location, None)
+        
+        # Update album completion status
+        if album_id in album_download_status:
+            status = download_status.get(track_id, {})
+            if status.get("status") == "completed":
+                album_download_status[album_id]["completed_tracks"] += 1
+            else:
+                album_download_status[album_id]["failed_tracks"] += 1
+            
+            # Check if album is complete
+            total = album_download_status[album_id]["total_tracks"]
+            completed = album_download_status[album_id]["completed_tracks"]
+            failed = album_download_status[album_id]["failed_tracks"]
+            
+            if completed + failed >= total:
+                album_download_status[album_id]["status"] = "completed"
+                album_download_status[album_id]["current_track"] = None
+    except Exception as e:
+        if album_id in album_download_status:
+            album_download_status[album_id]["failed_tracks"] += 1
+        print(f"Error downloading album track {track_id}: {e}")
+
+@app.get("/api/download/album/status/{album_id}")
+async def get_album_download_status(album_id: str):
+    """Get download status for an album"""
+    if album_id not in album_download_status:
+        raise HTTPException(status_code=404, detail="Album download not found")
+    
+    return album_download_status[album_id]
 
 @app.get("/api/youtube/candidates/{track_id}")
 async def get_youtube_candidates(track_id: str):

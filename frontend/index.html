@@ -23,12 +23,18 @@
                 />
                 <button id="searchBtn" class="btn btn-primary">Search</button>
             </div>
-            <div class="download-option">
-                <label for="downloadLocation">Download to:</label>
-                <select id="downloadLocation" class="download-select">
-                    <option value="local">My Downloads Folder (System)</option>
-                    <option value="navidrome">Navidrome Server (Test)</option>
-                </select>
+            <div class="search-options">
+                <div class="search-type-toggle">
+                    <button id="searchTracks" class="toggle-btn active">Tracks</button>
+                    <button id="searchAlbums" class="toggle-btn">Albums</button>
+                </div>
+                <div class="download-option">
+                    <label for="downloadLocation">Download to:</label>
+                    <select id="downloadLocation" class="download-select">
+                        <option value="local">My Downloads Folder (System)</option>
+                        <option value="navidrome">Navidrome Server (Test)</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -47,6 +53,25 @@
         <div id="results" class="results hidden">
             <h2>Search Results</h2>
             <div id="tracksList" class="tracks-list"></div>
+            <div id="albumsList" class="albums-list hidden"></div>
+        </div>
+
+        <!-- Album Detail Modal -->
+        <div id="albumModal" class="modal hidden">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2 id="albumModalTitle">Album</h2>
+                    <button class="modal-close" id="albumModalClose">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div id="albumDetails" class="album-details"></div>
+                    <div id="albumTracksList" class="album-tracks-list"></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="closeAlbumModal">Close</button>
+                    <button class="btn btn-primary" id="downloadAlbumBtn">Download All</button>
+                </div>
+            </div>
         </div>
     </div>
 
