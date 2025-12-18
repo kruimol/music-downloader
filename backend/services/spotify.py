@@ -59,6 +59,7 @@ class SpotifyService:
                 'duration_ms': track['duration_ms'],
                 'external_url': track['external_urls']['spotify'],
                 'preview_url': track.get('preview_url'),
+                'track_number': track.get('track_number', 1),
                 # Get the largest image (first in array, sorted by size descending)
                 'album_art': track['album']['images'][0]['url'] if track['album']['images'] else None,
                 'release_date': track['album'].get('release_date', '')
