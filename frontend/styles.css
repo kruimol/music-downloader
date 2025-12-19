@@ -304,23 +304,24 @@ header h1 {
 }
 
 .download-status {
-    margin-top: 30px;
-    margin-bottom: 30px;
-    padding: 20px;
-    background: linear-gradient(135deg, rgba(29, 185, 84, 0.1), rgba(30, 215, 96, 0.05));
-    border-radius: 15px;
-    border: 2px solid var(--primary-color);
-    box-shadow: 0 4px 20px rgba(29, 185, 84, 0.3);
-    position: sticky;
-    top: 20px;
-    z-index: 100;
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    width: 280px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.8);
+    color: var(--text-primary);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    z-index: 300;
+    font-size: 0.9rem;
 }
 
 .download-status h2 {
-    margin-bottom: 15px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    font-size: 1rem;
+    margin-bottom: 10px;
     color: var(--primary-color);
 }
 
@@ -332,8 +333,9 @@ header h1 {
 
 .status-content {
     display: flex;
+    background: rgba(29, 185, 84, 0.6);
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
 }
 
 .status-item {
@@ -784,18 +786,34 @@ header h1 {
         font-size: 2rem;
     }
 
+    .container {
+        padding: 10px;
+    }
+
     .search-box {
         flex-direction: column;
+        gap: 5px;
+    }
+
+    .btn {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+
+    .download-status {
+        width: 90%;
+        right: 5%;
+        top: 10px;
     }
 
     .track-card {
         flex-direction: column;
-        text-align: center;
+        align-items: flex-start;
     }
 
-    .track-actions {
-        width: 100%;
-        justify-content: center;
+    .track-art {
+        width: 60px;
+        height: 60px;
     }
 }
 
