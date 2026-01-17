@@ -12,7 +12,7 @@ services:
     volumes:
       # Mount Navidrome music directory (REQUIRED: Change to your actual Navidrome music path)
       # Example: - /path/to/navidrome/music:/music:rw
-      - navidrome-music:/music:rw
+      - testmusic-navidrome-wmjesz_navidrome-music:/music:rw
     environment:
       - API_HOST=0.0.0.0
       - API_PORT=8000
